@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Voice Navigator for Accessibility",
+  "name": "Sightline",
   "version": "1.0",
-  "description": "AI-powered voice navigation for blind users",
+  "description": "Sightline: AI voice navigation with white-orange theme",
   "permissions": [
     "activeTab",
     "scripting",

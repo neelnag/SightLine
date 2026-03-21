@@ -1,8 +1,8 @@
 body {
   width: 400px;
   font-family: Arial, sans-serif;
-  background: #000;
-  color: #fff;
+  background: #ffffff;
+  color: #333333;
   margin: 0;
   padding: 0;
   overflow-y: auto;
@@ -15,7 +15,7 @@ body {
 h1 {
   font-size: 24px;
   margin: 0 0 20px 0;
-  color: #fff;
+  color: #f57c00;
 }
 
 button {
@@ -26,54 +26,54 @@ button {
   border: none;
   border-radius: 5px;
   cursor: pointer;
-  background: #4CAF50;
-  color: white;
+  background: #ff8c00;
+  color: #ffffff;
   font-weight: bold;
   transition: background 0.3s;
 }
 
 button:hover:not(:disabled) {
-  background: #45a049;
+  background: #e67e22;
 }
 
 button:disabled {
-  background: #ccc;
+  background: #ffd2a6;
   cursor: not-allowed;
 }
 
 .secondary-btn {
-  background: #1f6feb;
+  background: #ffb74d;
 }
 
 .secondary-btn:hover:not(:disabled) {
-  background: #1158c7;
+  background: #ffa726;
 }
 
 .status {
   margin: 15px 0;
   padding: 12px;
-  background: #333;
+  background: #fff3e0;
   border-radius: 3px;
   font-size: 14px;
   min-height: 20px;
-  border-left: 3px solid #4CAF50;
+  border-left: 3px solid #fb8c00;
 }
 
 .transcript {
   margin: 10px 0;
   padding: 12px;
-  background: #1a1a1a;
+  background: #fff8e1;
   min-height: 40px;
-  border-left: 3px solid #2196F3;
+  border-left: 3px solid #ff9800;
   border-radius: 3px;
   font-style: italic;
-  color: #aaa;
+  color: #666;
 }
 
 .feedback {
   margin: 10px 0;
   padding: 12px;
-  background: #003300;
+  background: #d9f7be;
   border-radius: 3px;
   min-height: 40px;
   border-left: 3px solid #4CAF50;
