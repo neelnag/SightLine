@@ -1,18 +1,6 @@
 const BACKEND_URL = 'http://localhost:3000';
-const recognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-let recognition;
 let isListening = false;
-let isStarting = false;
-let stopRequested = false;
-
-try {
-  if (recognitionAPI) {
-    recognition = new recognitionAPI();
-  }
-} catch (e) {
-  console.error('Speech Recognition API not available:', e);
-}
 
 const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
@@ -27,150 +15,107 @@ const showMicHelp = (show) => {
   micHelpDiv.classList.toggle('hidden', !show);
 };
 
-const getMicPermissionState = async () => {
-  if (!navigator.permissions || !navigator.permissions.query) {
-    return 'unknown';
-  }
-
-  try {
-    const result = await navigator.permissions.query({ name: 'microphone' });
-    return result.state || 'unknown';
-  } catch (error) {
-    console.warn('Could not read microphone permission state:', error);
-    return 'unknown';
-  }
-};
-
-const canActuallyUseMicrophone = async () => {
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    return false;
-  }
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    stream.getTracks().forEach((track) => track.stop());
-    return true;
-  } catch (error) {
-    return false;
-  }
-};
-
 if (openMicSettingsBtn) {
   openMicSettingsBtn.addEventListener('click', () => {
     if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.create) {
       chrome.tabs.create({ url: 'chrome://settings/content/microphone' });
-    } else {
-      window.open('chrome://settings/content/microphone', '_blank');
     }
   });
 }
 
-if (recognition) {
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  recognition.lang = 'en-US';
+const sendToActiveTab = (message) => {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+      try {
+        if (!tabs || !tabs.length || !tabs[0].id) {
+          throw new Error('No active tab found.');
+        }
 
-  recognition.onstart = () => {
-    isStarting = false;
-    stopRequested = false;
-    isListening = true;
-    startBtn.disabled = true;
-    stopBtn.disabled = false;
-    statusDiv.textContent = '🎤 Listening...';
-    transcriptDiv.textContent = '';
-    feedbackDiv.textContent = '';
-    showMicHelp(false);
-  };
+        const tab = tabs[0];
+        if (isRestrictedTabUrl(tab.url || '')) {
+          throw new Error('restricted_page');
+        }
 
-  recognition.onresult = (event) => {
-    let interim = '';
-    let finalTranscript = '';
-    
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      const transcript = event.results[i][0].transcript;
-      if (event.results[i].isFinal) {
-        finalTranscript += transcript + ' ';
-      } else {
-        interim += transcript;
+        await ensureContentScriptReady(tab.id);
+        const response = await sendMessageToTab(tab.id, message);
+        resolve(response || {});
+      } catch (error) {
+        reject(error);
       }
-    }
-    
-    transcriptDiv.textContent = finalTranscript || interim || 'Listening...';
-    
-    if (finalTranscript) {
-      processCommand(finalTranscript.trim());
-    }
+    });
+  });
+};
+
+const isRestrictedTabUrl = (url) => {
+  return (
+    url.startsWith('chrome://') ||
+    url.startsWith('chrome-extension://') ||
+    url.startsWith('edge://') ||
+    url.startsWith('about:') ||
+    url.startsWith('view-source:')
+  );
+};
+
+const sendMessageToTab = (tabId, message) => {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.sendMessage(tabId, message, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve(response || {});
+    });
+  });
+};
+
+const ensureContentScriptReady = async (tabId) => {
+  const isPingHealthy = async () => {
+    const ping = await sendMessageToTab(tabId, { type: 'PING' });
+    return Boolean(ping && ping.success);
   };
 
-  recognition.onerror = async (event) => {
-    isStarting = false;
-    statusDiv.textContent = `❌ Error: ${event.error}`;
-    const micPermissionState = await getMicPermissionState();
-    const micIsUsable = await canActuallyUseMicrophone();
-    const isPermissionDenied = micPermissionState === 'denied' || !micIsUsable;
-    feedbackDiv.textContent = getSpeechErrorMessage(
-      event.error,
-      micPermissionState,
-      micIsUsable
+  try {
+    if (await isPingHealthy()) {
+      return;
+    }
+  } catch (error) {
+    if (!/Receiving end does not exist/i.test(error.message)) {
+      throw error;
+    }
+  }
+
+  // Inject latest content script when missing or stale.
+  await new Promise((resolve, reject) => {
+    chrome.scripting.executeScript(
+      { target: { tabId }, files: ['content.js'] },
+      () => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        resolve();
+      }
     );
-    showMicHelp(isPermissionDenied);
-
-    // Ensure controls recover cleanly after an error.
-    isListening = false;
-    startBtn.disabled = false;
-    stopBtn.disabled = true;
-  };
-
-  recognition.onend = () => {
-    isStarting = false;
-    isListening = false;
-    startBtn.disabled = false;
-    stopBtn.disabled = true;
-    statusDiv.textContent = stopRequested
-      ? '✓ Stopped listening'
-      : '✓ Ready to listen';
-    stopRequested = false;
-  };
-
-  startBtn.addEventListener('click', async () => {
-    if (isListening || isStarting) return;
-    isStarting = true;
-    statusDiv.textContent = 'Starting...';
-
-    try {
-      recognition.start();
-    } catch (error) {
-      isStarting = false;
-      console.error('Recognition start failed:', error);
-      statusDiv.textContent = '❌ Unable to start speech recognition';
-      feedbackDiv.textContent = 'Please close and reopen the popup, then try again.';
-    }
   });
 
-  stopBtn.addEventListener('click', () => {
-    stopRequested = true;
-    recognition.stop();
-  });
-} else {
-  statusDiv.textContent = '❌ Speech Recognition not supported in this browser';
-  startBtn.disabled = true;
-}
+  if (!(await isPingHealthy())) {
+    throw new Error('content_script_not_ready');
+  }
+};
 
-const getSpeechErrorMessage = (
-  errorCode,
-  micPermissionState = 'unknown',
-  micIsUsable = false
-) => {
+const setIdleUi = () => {
+  isListening = false;
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+  statusDiv.textContent = '✓ Ready to listen';
+};
+
+const getSpeechErrorMessage = (errorCode) => {
   switch (errorCode) {
     case 'not-allowed':
-      if (micIsUsable) {
-        return 'Microphone is available, but speech recognition is blocked in this popup context. Try again on a normal webpage tab with the popup open.';
-      }
-      return micPermissionState === 'denied'
-        ? 'Microphone permission denied. Use the button below to enable it, then retry.'
-        : 'Microphone access was blocked for this attempt. Retry and allow microphone when prompted.';
+      return 'Microphone permission denied for this tab. Allow microphone access in site settings, then retry.';
     case 'service-not-allowed':
-      return 'Speech recognition service is unavailable in this context. Try on a regular HTTPS webpage tab and keep the popup open while speaking.';
+      return 'Speech recognition is not available on this page context. Open a normal HTTPS webpage and try again.';
     case 'audio-capture':
       return 'No microphone was found. Check your microphone connection/settings.';
     case 'network':
@@ -178,17 +123,98 @@ const getSpeechErrorMessage = (
     case 'no-speech':
       return 'No speech detected. Speak a little louder and try again.';
     case 'aborted':
-      return stopRequested ? 'Listening stopped.' : 'Speech recognition was interrupted. Try again.';
+      return 'Listening stopped.';
+    case 'unsupported':
+      return 'Speech recognition is not supported in this tab.';
     default:
       return 'Speech recognition error. Please try again.';
   }
 };
 
+chrome.runtime.onMessage.addListener((request) => {
+  if (!request || !request.type) return;
+
+  if (request.type === 'VOICE_STATUS') {
+    if (request.status === 'listening') {
+      isListening = true;
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      statusDiv.textContent = '🎤 Listening...';
+      feedbackDiv.textContent = '';
+      transcriptDiv.textContent = '';
+      showMicHelp(false);
+    } else if (request.status === 'stopped') {
+      setIdleUi();
+    }
+  }
+
+  if (request.type === 'VOICE_RESULT') {
+    if (request.isFinal) {
+      transcriptDiv.textContent = request.text || '';
+      if (request.text) {
+        processCommand(request.text);
+      }
+    } else {
+      transcriptDiv.textContent = request.text || 'Listening...';
+    }
+  }
+
+  if (request.type === 'VOICE_ERROR') {
+    statusDiv.textContent = `❌ Error: ${request.error}`;
+    feedbackDiv.textContent = getSpeechErrorMessage(request.error);
+    showMicHelp(request.error === 'not-allowed');
+    setIdleUi();
+  }
+});
+
+startBtn.addEventListener('click', async () => {
+  if (isListening) return;
+
+  statusDiv.textContent = 'Starting...';
+  feedbackDiv.textContent = '';
+  transcriptDiv.textContent = '';
+  showMicHelp(false);
+
+  try {
+    const response = await sendToActiveTab({ type: 'START_VOICE_RECOGNITION' });
+    if (!response.success) {
+      throw new Error(response.error || 'start_recognition_failed');
+    }
+  } catch (error) {
+    console.error('Failed to start recognition in active tab:', error);
+    statusDiv.textContent = '❌ Unable to start speech recognition';
+    if (error.message === 'restricted_page') {
+      feedbackDiv.textContent =
+        'This page does not allow extension scripts. Open a regular https:// website tab and try again.';
+    } else if (error.message === 'content_script_not_ready') {
+      feedbackDiv.textContent =
+        'Page script did not initialize. Refresh the webpage once, then try Start Listening again.';
+    } else if (error.message === 'unsupported') {
+      feedbackDiv.textContent =
+        'Speech recognition is not supported on this tab/page. Try another standard HTTPS site.';
+    } else {
+      feedbackDiv.textContent =
+        'Could not connect to the page script. Refresh the tab and try Start Listening again.';
+    }
+    setIdleUi();
+  }
+});
+
+stopBtn.addEventListener('click', async () => {
+  try {
+    await sendToActiveTab({ type: 'STOP_VOICE_RECOGNITION' });
+  } catch (error) {
+    console.error('Failed to stop recognition in active tab:', error);
+  } finally {
+    setIdleUi();
+  }
+});
+
 const processCommand = async (transcript) => {
   try {
     feedbackDiv.textContent = '⏳ Processing your command...';
     statusDiv.textContent = 'Sending to AI...';
-    
+
     const response = await fetch(`${BACKEND_URL}/api/voice/process`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -200,11 +226,10 @@ const processCommand = async (transcript) => {
     }
 
     const data = await response.json();
-    
+
     feedbackDiv.textContent = `✓ ${data.feedback}`;
     statusDiv.textContent = 'Command executed';
-    
-    // Speak the feedback
+
     try {
       speakFeedback(data.feedback);
     } catch (e) {
@@ -225,3 +250,5 @@ const speakFeedback = (text) => {
     window.speechSynthesis.speak(utterance);
   }
 };
+
+setIdleUi();
