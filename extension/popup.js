@@ -27,6 +27,34 @@ const showMicHelp = (show) => {
   micHelpDiv.classList.toggle('hidden', !show);
 };
 
+const getMicPermissionState = async () => {
+  if (!navigator.permissions || !navigator.permissions.query) {
+    return 'unknown';
+  }
+
+  try {
+    const result = await navigator.permissions.query({ name: 'microphone' });
+    return result.state || 'unknown';
+  } catch (error) {
+    console.warn('Could not read microphone permission state:', error);
+    return 'unknown';
+  }
+};
+
+const canActuallyUseMicrophone = async () => {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    return false;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach((track) => track.stop());
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
+
 if (openMicSettingsBtn) {
   openMicSettingsBtn.addEventListener('click', () => {
     if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.create) {
@@ -74,11 +102,18 @@ if (recognition) {
     }
   };
 
-  recognition.onerror = (event) => {
+  recognition.onerror = async (event) => {
     isStarting = false;
     statusDiv.textContent = `❌ Error: ${event.error}`;
-    feedbackDiv.textContent = getSpeechErrorMessage(event.error);
-    showMicHelp(event.error === 'not-allowed' || event.error === 'service-not-allowed');
+    const micPermissionState = await getMicPermissionState();
+    const micIsUsable = await canActuallyUseMicrophone();
+    const isPermissionDenied = micPermissionState === 'denied' || !micIsUsable;
+    feedbackDiv.textContent = getSpeechErrorMessage(
+      event.error,
+      micPermissionState,
+      micIsUsable
+    );
+    showMicHelp(isPermissionDenied);
 
     // Ensure controls recover cleanly after an error.
     isListening = false;
@@ -121,11 +156,21 @@ if (recognition) {
   startBtn.disabled = true;
 }
 
-const getSpeechErrorMessage = (errorCode) => {
+const getSpeechErrorMessage = (
+  errorCode,
+  micPermissionState = 'unknown',
+  micIsUsable = false
+) => {
   switch (errorCode) {
     case 'not-allowed':
+      if (micIsUsable) {
+        return 'Microphone is available, but speech recognition is blocked in this popup context. Try again on a normal webpage tab with the popup open.';
+      }
+      return micPermissionState === 'denied'
+        ? 'Microphone permission denied. Use the button below to enable it, then retry.'
+        : 'Microphone access was blocked for this attempt. Retry and allow microphone when prompted.';
     case 'service-not-allowed':
-      return 'Microphone permission denied. Use the button below to enable it, then retry.';
+      return 'Speech recognition service is unavailable in this context. Try on a regular HTTPS webpage tab and keep the popup open while speaking.';
     case 'audio-capture':
       return 'No microphone was found. Check your microphone connection/settings.';
     case 'network':
