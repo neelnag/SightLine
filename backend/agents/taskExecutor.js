@@ -1,6 +1,17 @@
 const llm = require('../utils/llm');
 const domInteraction = require('../utils/domInteraction');
 
+const mergeFeedback = (actionMessage, intentFeedback) => {
+  const primary = (actionMessage || '').trim();
+  const secondary = (intentFeedback || '').trim();
+
+  if (!primary && !secondary) return 'Action completed';
+  if (!primary) return secondary;
+  if (!secondary) return primary;
+  if (primary.toLowerCase() === secondary.toLowerCase()) return primary;
+  return `${primary} ${secondary}`;
+};
+
 const executeTask = async (userCommand) => {
   try {
     // Step 1: Use LLM to understand intent
@@ -30,7 +41,7 @@ const executeTask = async (userCommand) => {
     return {
       action: intent.type,
       description: intent.description,
-      feedback: result.message || 'Action completed'
+      feedback: mergeFeedback(result.message, intent.feedback)
     };
   } catch (error) {
     console.error('Task execution error:', error);

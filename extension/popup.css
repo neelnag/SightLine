@@ -41,6 +41,14 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.secondary-btn {
+  background: #1f6feb;
+}
+
+.secondary-btn:hover:not(:disabled) {
+  background: #1158c7;
+}
+
 .status {
   margin: 15px 0;
   padding: 12px;
@@ -69,6 +77,23 @@ button:disabled {
   border-radius: 3px;
   min-height: 40px;
   border-left: 3px solid #4CAF50;
+}
+
+.mic-help {
+  margin: 10px 0;
+  padding: 12px;
+  background: #2a1a00;
+  border-left: 3px solid #ffb020;
+  border-radius: 3px;
+  font-size: 13px;
+}
+
+.mic-help p {
+  margin: 0 0 8px 0;
+}
+
+.hidden {
+  display: none;
 }
 
 .help-text {

@@ -19,6 +19,23 @@ const stopBtn = document.getElementById('stopBtn');
 const statusDiv = document.getElementById('status');
 const transcriptDiv = document.getElementById('transcript');
 const feedbackDiv = document.getElementById('feedback');
+const micHelpDiv = document.getElementById('micHelp');
+const openMicSettingsBtn = document.getElementById('openMicSettingsBtn');
+
+const showMicHelp = (show) => {
+  if (!micHelpDiv) return;
+  micHelpDiv.classList.toggle('hidden', !show);
+};
+
+if (openMicSettingsBtn) {
+  openMicSettingsBtn.addEventListener('click', () => {
+    if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.create) {
+      chrome.tabs.create({ url: 'chrome://settings/content/microphone' });
+    } else {
+      window.open('chrome://settings/content/microphone', '_blank');
+    }
+  });
+}
 
 if (recognition) {
   recognition.continuous = true;
@@ -34,6 +51,7 @@ if (recognition) {
     statusDiv.textContent = '🎤 Listening...';
     transcriptDiv.textContent = '';
     feedbackDiv.textContent = '';
+    showMicHelp(false);
   };
 
   recognition.onresult = (event) => {
@@ -60,6 +78,7 @@ if (recognition) {
     isStarting = false;
     statusDiv.textContent = `❌ Error: ${event.error}`;
     feedbackDiv.textContent = getSpeechErrorMessage(event.error);
+    showMicHelp(event.error === 'not-allowed' || event.error === 'service-not-allowed');
 
     // Ensure controls recover cleanly after an error.
     isListening = false;
@@ -106,7 +125,7 @@ const getSpeechErrorMessage = (errorCode) => {
   switch (errorCode) {
     case 'not-allowed':
     case 'service-not-allowed':
-      return 'Microphone permission denied. Allow mic access and try again.';
+      return 'Microphone permission denied. Use the button below to enable it, then retry.';
     case 'audio-capture':
       return 'No microphone was found. Check your microphone connection/settings.';
     case 'network':
