@@ -5,7 +5,7 @@ const taskExecutor = require('../agents/taskExecutor');
 // Receive transcribed voice command
 router.post('/process', async (req, res) => {
   try {
-    const { transcript } = req.body;
+    const { transcript, pageContext } = req.body;
     
     if (!transcript) {
       return res.status(400).json({ error: 'No transcript provided' });
@@ -14,13 +14,14 @@ router.post('/process', async (req, res) => {
     console.log('Processing transcript:', transcript);
 
     // Send to AI agent
-    const result = await taskExecutor.executeTask(transcript);
+    const result = await taskExecutor.executeTask(transcript, pageContext || null);
     
     res.json({
       success: true,
       action: result.action,
       description: result.description,
-      feedback: result.feedback
+      feedback: result.feedback,
+      actionPayload: result.actionPayload || null
     });
   } catch (error) {
     console.error('Error processing voice:', error);

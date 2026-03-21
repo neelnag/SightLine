@@ -215,10 +215,20 @@ const processCommand = async (transcript) => {
     feedbackDiv.textContent = '⏳ Processing your command...';
     statusDiv.textContent = 'Sending to AI...';
 
+    let pageContext = null;
+    try {
+      const contextResponse = await sendToActiveTab({ type: 'GET_PAGE_CONTEXT' });
+      if (contextResponse && contextResponse.success) {
+        pageContext = contextResponse.context || null;
+      }
+    } catch (contextError) {
+      console.warn('Could not collect page context:', contextError);
+    }
+
     const response = await fetch(`${BACKEND_URL}/api/voice/process`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transcript })
+      body: JSON.stringify({ transcript, pageContext })
     });
 
     if (!response.ok) {
@@ -227,11 +237,38 @@ const processCommand = async (transcript) => {
 
     const data = await response.json();
 
-    feedbackDiv.textContent = `✓ ${data.feedback}`;
-    statusDiv.textContent = 'Command executed';
+    let finalFeedback = data.feedback || 'Command processed';
+    statusDiv.textContent = 'Command processed';
+
+    if (data.actionPayload) {
+      try {
+        const execResult = await sendToActiveTab({
+          type: 'EXECUTE_ACTION',
+          action: data.actionPayload
+        });
+
+        if (execResult && execResult.success) {
+          const execMessage = execResult.message ? ` ${execResult.message}` : '';
+          finalFeedback = `${finalFeedback}${execMessage}`.trim();
+          statusDiv.textContent = 'Command executed';
+        } else {
+          const reason = execResult && execResult.message
+            ? execResult.message
+            : 'Action execution failed on page.';
+          finalFeedback = `${finalFeedback} ${reason}`.trim();
+          statusDiv.textContent = 'Command partially executed';
+        }
+      } catch (execError) {
+        console.error('Page action execution error:', execError);
+        finalFeedback = `${finalFeedback} Could not execute action on the page.`.trim();
+        statusDiv.textContent = 'Command partially executed';
+      }
+    }
+
+    feedbackDiv.textContent = `✓ ${finalFeedback}`;
 
     try {
-      speakFeedback(data.feedback);
+      speakFeedback(finalFeedback);
     } catch (e) {
       console.error('TTS error:', e);
     }
