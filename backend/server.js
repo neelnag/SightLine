@@ -2,7 +2,10 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
+
+// Load backend-local env first, then fallback to repo-root env for missing keys.
 require('dotenv').config({ path: path.resolve(__dirname, '.env') });
+require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 
 const voiceRoutes = require('./routes/voice');
 const commandRoutes = require('./routes/commands');
