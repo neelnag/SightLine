@@ -4,14 +4,14 @@ const axios = require('axios');
 // Replace this with actual API calls to OpenAI/Claude
 
 const analyzeCommand = async (command, pageContext = null) => {
-  //console.log("analyze");
+  console.log("analyze");
   try {
     const safeCommand = typeof command === 'string' ? command : '';
     const model = process.env.OPENAI_MODEL || 'gpt-4.1-mini';
 
     // Check if OpenAI API key is set
     if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your_api_key_here') {
-      // Mock response for testing
+      console.log("regex");
       return getContextualResponse(safeCommand);
     }
 
