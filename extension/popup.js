@@ -3,11 +3,15 @@ const recognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognitio
 
 let recognition;
 let isListening = false;
+let isStarting = false;
+let stopRequested = false;
 
 try {
-  recognition = new recognitionAPI();
+  if (recognitionAPI) {
+    recognition = new recognitionAPI();
+  }
 } catch (e) {
-  console.error('Speech Recognition API not available');
+  console.error('Speech Recognition API not available:', e);
 }
 
 const startBtn = document.getElementById('startBtn');
@@ -22,6 +26,8 @@ if (recognition) {
   recognition.lang = 'en-US';
 
   recognition.onstart = () => {
+    isStarting = false;
+    stopRequested = false;
     isListening = true;
     startBtn.disabled = true;
     stopBtn.disabled = false;
@@ -51,29 +57,94 @@ if (recognition) {
   };
 
   recognition.onerror = (event) => {
+    isStarting = false;
     statusDiv.textContent = `❌ Error: ${event.error}`;
-    feedbackDiv.textContent = 'Speech recognition error. Please try again.';
-  };
+    feedbackDiv.textContent = getSpeechErrorMessage(event.error);
 
-  recognition.onend = () => {
+    // Ensure controls recover cleanly after an error.
     isListening = false;
     startBtn.disabled = false;
     stopBtn.disabled = true;
-    statusDiv.textContent = '✓ Ready to listen';
   };
 
-  startBtn.addEventListener('click', () => {
+  recognition.onend = () => {
+    isStarting = false;
+    isListening = false;
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    statusDiv.textContent = stopRequested
+      ? '✓ Stopped listening'
+      : '✓ Ready to listen';
+    stopRequested = false;
+  };
+
+  startBtn.addEventListener('click', async () => {
+    if (isListening || isStarting) return;
+    isStarting = true;
     statusDiv.textContent = 'Starting...';
-    recognition.start();
+
+    const micEnabled = await ensureMicrophoneAccess();
+    if (!micEnabled) {
+      isStarting = false;
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      return;
+    }
+
+    try {
+      recognition.start();
+    } catch (error) {
+      isStarting = false;
+      console.error('Recognition start failed:', error);
+      statusDiv.textContent = '❌ Unable to start speech recognition';
+      feedbackDiv.textContent = 'Please close and reopen the popup, then try again.';
+    }
   });
 
   stopBtn.addEventListener('click', () => {
+    stopRequested = true;
     recognition.stop();
   });
 } else {
   statusDiv.textContent = '❌ Speech Recognition not supported in this browser';
   startBtn.disabled = true;
 }
+
+const ensureMicrophoneAccess = async () => {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    feedbackDiv.textContent = 'Microphone access API is unavailable in this browser.';
+    return false;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach((track) => track.stop());
+    return true;
+  } catch (error) {
+    console.error('Microphone permission error:', error);
+    statusDiv.textContent = '❌ Microphone permission required';
+    feedbackDiv.textContent = 'Allow microphone access for this extension and try again.';
+    return false;
+  }
+};
+
+const getSpeechErrorMessage = (errorCode) => {
+  switch (errorCode) {
+    case 'not-allowed':
+    case 'service-not-allowed':
+      return 'Microphone permission denied. Allow mic access and try again.';
+    case 'audio-capture':
+      return 'No microphone was found. Check your microphone connection/settings.';
+    case 'network':
+      return 'Speech service network error. Check internet and retry.';
+    case 'no-speech':
+      return 'No speech detected. Speak a little louder and try again.';
+    case 'aborted':
+      return stopRequested ? 'Listening stopped.' : 'Speech recognition was interrupted. Try again.';
+    default:
+      return 'Speech recognition error. Please try again.';
+  }
+};
 
 const processCommand = async (transcript) => {
   try {
