@@ -5,10 +5,12 @@ const axios = require('axios');
 
 const analyzeCommand = async (command) => {
   try {
+    const safeCommand = typeof command === 'string' ? command : '';
+
     // Check if OpenAI API key is set
     if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your_api_key_here') {
       // Mock response for testing
-      return getContextualResponse(command);
+      return getContextualResponse(safeCommand);
     }
 
     const response = await axios.post(
@@ -24,7 +26,7 @@ const analyzeCommand = async (command) => {
           },
           {
             role: 'user',
-            content: command
+            content: safeCommand
           }
         ],
         temperature: 0.7,
@@ -39,7 +41,7 @@ const analyzeCommand = async (command) => {
     );
 
     const content = response.data.choices[0].message.content;
-    return JSON.parse(content);
+    return extractIntentFromResponse(content);
   } catch (error) {
     console.error('LLM error:', error.message);
     // Fallback to contextual response
@@ -47,8 +49,26 @@ const analyzeCommand = async (command) => {
   }
 };
 
+const extractIntentFromResponse = (content) => {
+  if (typeof content !== 'string') {
+    throw new Error('Invalid LLM response format');
+  }
+
+  try {
+    return JSON.parse(content);
+  } catch {
+    // Handle cases where the model wraps JSON in prose/code fences.
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('No JSON object found in LLM response');
+    }
+    return JSON.parse(jsonMatch[0]);
+  }
+};
+
 const getContextualResponse = (command) => {
-  const cmd = command.toLowerCase();
+  const normalizedCommand = typeof command === 'string' ? command : '';
+  const cmd = normalizedCommand.toLowerCase();
 
   if (cmd.includes('read') || cmd.includes('what') || cmd.includes('tell')) {
     return {
@@ -57,7 +77,7 @@ const getContextualResponse = (command) => {
       message: 'Reading page content'
     };
   } else if (cmd.includes('click') || cmd.includes('select')) {
-    const match = command.match(/click\s+(?:the\s+)?(.+)/i);
+    const match = normalizedCommand.match(/click\s+(?:the\s+)?(.+)/i);
     const target = match ? match[1] : 'button';
     return {
       type: 'click',
@@ -66,7 +86,7 @@ const getContextualResponse = (command) => {
       message: `Clicking ${target}`
     };
   } else if (cmd.includes('search') || cmd.includes('find')) {
-    const match = command.match(/search\s+(?:for\s+)?(.+)/i);
+    const match = normalizedCommand.match(/search\s+(?:for\s+)?(.+)/i);
     const query = match ? match[1] : 'information';
     return {
       type: 'search',
@@ -83,7 +103,7 @@ const getContextualResponse = (command) => {
       message: `Scrolling ${direction}`
     };
   } else if (cmd.includes('go to') || cmd.includes('navigate')) {
-    const match = command.match(/go\s+to\s+(.+)/i);
+    const match = normalizedCommand.match(/go\s+to\s+(.+)/i);
     const url = match ? match[1] : 'home';
     return {
       type: 'navigate',
