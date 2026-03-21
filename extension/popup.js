@@ -83,14 +83,6 @@ if (recognition) {
     isStarting = true;
     statusDiv.textContent = 'Starting...';
 
-    const micEnabled = await ensureMicrophoneAccess();
-    if (!micEnabled) {
-      isStarting = false;
-      startBtn.disabled = false;
-      stopBtn.disabled = true;
-      return;
-    }
-
     try {
       recognition.start();
     } catch (error) {
@@ -109,24 +101,6 @@ if (recognition) {
   statusDiv.textContent = '❌ Speech Recognition not supported in this browser';
   startBtn.disabled = true;
 }
-
-const ensureMicrophoneAccess = async () => {
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    feedbackDiv.textContent = 'Microphone access API is unavailable in this browser.';
-    return false;
-  }
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    stream.getTracks().forEach((track) => track.stop());
-    return true;
-  } catch (error) {
-    console.error('Microphone permission error:', error);
-    statusDiv.textContent = '❌ Microphone permission required';
-    feedbackDiv.textContent = 'Allow microphone access for this extension and try again.';
-    return false;
-  }
-};
 
 const getSpeechErrorMessage = (errorCode) => {
   switch (errorCode) {
