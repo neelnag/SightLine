@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Voice Navigator</h1>
+    <button id="startBtn" aria-label="Start listening">🎤 Start Listening</button>
+    <button id="stopBtn" aria-label="Stop listening" disabled>⏹️ Stop</button>
+    
+    <div id="status" class="status">Ready to listen for voice commands</div>
+    <div id="transcript" class="transcript"></div>
+    <div id="feedback" class="feedback"></div>
+    
+    <div class="help-text">
+      <p>Say things like:</p>
+      <ul>
+        <li>"Read the page"</li>
+        <li>"Click the first link"</li>
+        <li>"Search for puppies"</li>
+        <li>"Scroll down"</li>
+      </ul>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

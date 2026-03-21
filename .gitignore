@@ -1,13 +1,31 @@
-# Byte-compiled / optimized / DLL files
+# Node modules (Backend)
+backend/node_modules/
+backend/.env.local
+backend/*.log
+
+# Python
 __pycache__/
 *.py[codz]
 *$py.class
 
-# C extensions
-*.so
+# Logs
+logs/
+*.log
+npm-debug.log*
 
-# Distribution / packaging
-.Python
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build/Dist
+dist/
+build/
 build/
 develop-eggs/
 dist/
