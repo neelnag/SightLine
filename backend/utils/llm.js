@@ -4,14 +4,12 @@ const axios = require('axios');
 // Replace this with actual API calls to OpenAI/Claude
 
 const analyzeCommand = async (command, pageContext = null) => {
-  console.log("analyze");
   try {
     const safeCommand = typeof command === 'string' ? command : '';
     const model = process.env.OPENAI_MODEL || 'gpt-4.1-mini';
 
     // Check if OpenAI API key is set
     if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your_api_key_here') {
-      console.log("regex");
       return getContextualResponse(safeCommand);
     }
 
@@ -37,7 +35,7 @@ Schema:
   "direction": "up|down",
   "steps": [
     {
-      "type": "click|fill|navigate|search|scroll|read|press|wait",
+      "type": "click|fill|navigate|search|scroll|read|press|wait|hover_preview",
       "target": "string",
       "selector": "string",
       "query": "string",
@@ -53,7 +51,9 @@ Schema:
 Rules:
 - Prefer "agent_plan" with one or more "steps" for multi-step requests.
 - Use short robust steps that can run on arbitrary pages.
-- feedback should be descriptive and helpful (1-2 sentences).
+- feedback must be concise, user-facing, and non-technical.
+- do not mention AI reasoning, planning, or internal thought process.
+- avoid phrases like "I will", "I am thinking", "plan", "step", or "analyzing".
 - If unsure, choose a safe best-effort plan and explain limits in feedback.`
           },
           {
@@ -64,8 +64,9 @@ Rules:
             })
           }
         ],
-        temperature: 0.7,
-        max_tokens: 200
+        response_format: { type: 'json_object' },
+        temperature: 0.2,
+        max_tokens: 350
       },
       {
         headers: {
@@ -105,7 +106,7 @@ const normalizeIntent = (intent, originalCommand = '') => {
   const base = {
     type: 'read_page',
     description: 'Read page content',
-    feedback: 'I will read the current page and provide a helpful summary.'
+    feedback: 'Reading the page now.'
   };
   if (!intent || typeof intent !== 'object') {
     return base;
@@ -138,7 +139,8 @@ const normalizeIntent = (intent, originalCommand = '') => {
         url: typeof step.url === 'string' ? step.url : '',
         direction: step.direction === 'up' ? 'up' : 'down',
         key: typeof step.key === 'string' ? step.key : '',
-        ms: Number.isFinite(step.ms) ? Math.max(0, Math.floor(step.ms)) : 0
+        ms: Number.isFinite(step.ms) ? Math.max(0, Math.floor(step.ms)) : 0,
+        enabled: typeof step.enabled === 'boolean' ? step.enabled : true
       }));
   }
 
@@ -206,6 +208,13 @@ const parseRuleBasedStep = (segment) => {
   if (lower.includes('read') || lower.includes('tell') || lower.includes('what')) {
     return { type: 'read' };
   }
+  if (lower.includes('hover')) {
+    const disabled = lower.includes('off') || lower.includes('disable') || lower.includes('stop');
+    return {
+      type: 'hover_preview',
+      enabled: !disabled
+    };
+  }
 
   return null;
 };
@@ -214,7 +223,7 @@ const getContextualResponse = (command) => {
   const normalizedCommand = typeof command === 'string' ? command : '';
   const cmd = normalizedCommand.toLowerCase();
   const multiSegments = normalizedCommand
-    .split(/\b(?:and then|then|and)\b/i)
+    .split(/\b(?:and then|after that|then|and)\b|,/i)
     .map((part) => part.trim())
     .filter(Boolean);
 
@@ -226,17 +235,27 @@ const getContextualResponse = (command) => {
       return {
         type: 'agent_plan',
         description: 'Execute multi-step command',
-        feedback: 'I will execute your request as a sequence of steps on the active page.',
+        feedback: 'Got it. Executing your request now.',
         steps
       };
     }
+  }
+
+  if (cmd.includes('hover') && (cmd.includes('product') || cmd.includes('preview') || cmd.includes('voice'))) {
+    const disabled = cmd.includes('off') || cmd.includes('disable') || cmd.includes('stop');
+    return {
+      type: 'agent_plan',
+      description: disabled ? 'Disable hover product preview' : 'Enable hover product preview',
+      feedback: disabled ? 'Product hover voice preview turned off.' : 'Product hover voice preview turned on.',
+      steps: [{ type: 'hover_preview', enabled: !disabled }]
+    };
   }
 
   if (cmd.includes('read') || cmd.includes('what') || cmd.includes('tell')) {
     return {
       type: 'read_page',
       description: 'Read page content',
-      feedback: 'I am reading the page content now and will summarize the most relevant information.',
+      feedback: 'Reading the page now.',
       steps: [{ type: 'read' }]
     };
   } else if (cmd.includes('click') || cmd.includes('select')) {
@@ -246,7 +265,7 @@ const getContextualResponse = (command) => {
       type: 'click',
       target,
       description: `Click on ${target}`,
-      feedback: `I am clicking ${target} for you now.`,
+      feedback: `Clicked ${target}.`,
       steps: [{ type: 'click', target }]
     };
   } else if (cmd.includes('search') || cmd.includes('find')) {
@@ -256,7 +275,7 @@ const getContextualResponse = (command) => {
       type: 'search',
       query,
       description: `Search for ${query}`,
-      feedback: `I am searching for ${query} and preparing the results.`,
+      feedback: `Searching for ${query}.`,
       steps: [{ type: 'search', query }]
     };
   } else if (cmd.includes('scroll') || cmd.includes('down') || cmd.includes('up')) {
@@ -265,7 +284,7 @@ const getContextualResponse = (command) => {
       type: 'scroll',
       direction,
       description: `Scroll ${direction}`,
-      feedback: `I am scrolling ${direction} so you can continue navigating the page.`,
+      feedback: `Scrolled ${direction}.`,
       steps: [{ type: 'scroll', direction }]
     };
   } else if (cmd.includes('go to') || cmd.includes('navigate')) {
@@ -275,7 +294,7 @@ const getContextualResponse = (command) => {
       type: 'navigate',
       url,
       description: `Navigate to ${url}`,
-      feedback: `I am navigating to ${url} now.`,
+      feedback: `Navigating to ${url}.`,
       steps: [{ type: 'navigate', url }]
     };
   } else if (cmd.includes('press ') || cmd.includes('hit ')) {
@@ -284,7 +303,7 @@ const getContextualResponse = (command) => {
     return {
       type: 'agent_plan',
       description: `Press ${key}`,
-      feedback: `I will press ${key} on the active page.`,
+      feedback: `Pressed ${key}.`,
       steps: [{ type: 'press', key }]
     };
   } else if (cmd.includes('wait')) {
@@ -293,14 +312,14 @@ const getContextualResponse = (command) => {
     return {
       type: 'agent_plan',
       description: 'Wait briefly',
-      feedback: 'I will pause briefly before continuing.',
+      feedback: 'Paused briefly.',
       steps: [{ type: 'wait', ms }]
     };
   } else {
     return {
       type: 'read_page',
       description: 'Default action',
-      feedback: 'I will read the current page and provide a helpful summary.',
+      feedback: 'Processing your request.',
       steps: [{ type: 'read' }]
     };
   }

@@ -4,11 +4,14 @@ let isListening = false;
 
 const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
+const hoverToggleBtn = document.getElementById('hoverToggleBtn');
+const openWebUiBtn = document.getElementById('openWebUiBtn');
 const statusDiv = document.getElementById('status');
 const transcriptDiv = document.getElementById('transcript');
 const feedbackDiv = document.getElementById('feedback');
 const micHelpDiv = document.getElementById('micHelp');
 const openMicSettingsBtn = document.getElementById('openMicSettingsBtn');
+let hoverPreviewEnabled = false;
 
 const showMicHelp = (show) => {
   if (!micHelpDiv) return;
@@ -108,6 +111,25 @@ const setIdleUi = () => {
   startBtn.disabled = false;
   stopBtn.disabled = true;
   statusDiv.textContent = '✓ Ready to listen';
+};
+
+const updateHoverToggleUi = () => {
+  if (!hoverToggleBtn) return;
+  hoverToggleBtn.textContent = hoverPreviewEnabled
+    ? '🔊 Hover Voice: On'
+    : '🔇 Hover Voice: Off';
+};
+
+const syncHoverToggleState = async () => {
+  try {
+    const response = await sendToActiveTab({ type: 'GET_HOVER_PREVIEW_STATE' });
+    if (response && response.success) {
+      hoverPreviewEnabled = response.enabled !== false;
+      updateHoverToggleUi();
+    }
+  } catch (error) {
+    updateHoverToggleUi();
+  }
 };
 
 const getSpeechErrorMessage = (errorCode) => {
@@ -210,6 +232,64 @@ stopBtn.addEventListener('click', async () => {
   }
 });
 
+if (hoverToggleBtn) {
+  hoverToggleBtn.addEventListener('click', async () => {
+    const nextEnabled = !hoverPreviewEnabled;
+    try {
+      const response = await sendToActiveTab({
+        type: 'EXECUTE_ACTION',
+        action: { type: 'hover_preview', enabled: nextEnabled }
+      });
+
+      if (response && response.success) {
+        hoverPreviewEnabled = nextEnabled;
+        updateHoverToggleUi();
+        feedbackDiv.textContent = hoverPreviewEnabled
+          ? '✓ Hover voice preview enabled.'
+          : '✓ Hover voice preview disabled.';
+      } else {
+        throw new Error((response && response.message) || 'Could not update hover preview.');
+      }
+    } catch (error) {
+      console.error('Hover toggle failed:', error);
+      feedbackDiv.textContent = '❌ Could not toggle hover preview on this page.';
+    }
+  });
+}
+
+if (openWebUiBtn) {
+  openWebUiBtn.addEventListener('click', async () => {
+    openWebUiBtn.disabled = true;
+    const previousText = openWebUiBtn.textContent;
+    openWebUiBtn.textContent = 'Starting Agent UI...';
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/web-ui/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success || !data.url) {
+        throw new Error(data.error || 'Unable to start browser-use/web-ui.');
+      }
+
+      chrome.tabs.create({ url: data.url });
+      feedbackDiv.textContent = '✓ Agent Web UI opened.';
+      statusDiv.textContent = data.alreadyRunning
+        ? 'Agent UI already running'
+        : 'Agent UI started';
+    } catch (error) {
+      console.error('Failed to open Agent UI:', error);
+      feedbackDiv.textContent =
+        '❌ Could not start Agent Web UI. Set BROWSER_USE_WEB_UI_DIR and ensure dependencies are installed.';
+      statusDiv.textContent = 'Agent UI start failed';
+    } finally {
+      openWebUiBtn.disabled = false;
+      openWebUiBtn.textContent = previousText;
+    }
+  });
+}
+
 const processCommand = async (transcript) => {
   try {
     feedbackDiv.textContent = '⏳ Processing your command...';
@@ -268,7 +348,7 @@ const processCommand = async (transcript) => {
     feedbackDiv.textContent = `✓ ${finalFeedback}`;
 
     try {
-      speakFeedback(finalFeedback);
+      speakFeedback(toUserFacingSpeech(finalFeedback));
     } catch (e) {
       console.error('TTS error:', e);
     }
@@ -288,4 +368,17 @@ const speakFeedback = (text) => {
   }
 };
 
+const toUserFacingSpeech = (text) => {
+  if (!text) return 'Done.';
+  return text
+    .replace(/\bplanned\b/gi, '')
+    .replace(/\bplan\b/gi, '')
+    .replace(/\bstep(s)?\b/gi, '')
+    .replace(/\bexecuting\b/gi, 'done')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
 setIdleUi();
+updateHoverToggleUi();
+syncHoverToggleState();

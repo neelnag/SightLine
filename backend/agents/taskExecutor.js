@@ -9,13 +9,7 @@ const mergeFeedback = (actionMessage, intentFeedback) => {
   if (!primary) return secondary;
   if (!secondary) return primary;
   if (primary.toLowerCase() === secondary.toLowerCase()) return primary;
-  return `${primary} ${secondary}`;
-};
-
-const summarizePlan = (steps = []) => {
-  if (!Array.isArray(steps) || !steps.length) return '';
-  if (steps.length === 1) return `Planned 1 step: ${steps[0].type}.`;
-  return `Planned ${steps.length} steps: ${steps.map((s) => s.type).join(', ')}.`;
+  return secondary;
 };
 
 const buildActionPayload = (intent = {}) => {
@@ -72,7 +66,7 @@ const executeTask = async (userCommand, pageContext = null) => {
     let result;
 
     if (intent.type === 'agent_plan') {
-      result = { success: true, message: summarizePlan(intent.steps) };
+      result = { success: true, message: '' };
     } else if (intent.type === 'read_page') {
       result = await domInteraction.readPageContent();
     } else if (intent.type === 'click') {

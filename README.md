@@ -76,6 +76,33 @@ npm start  # Runs on http://localhost:3000
 - Verify CORS is enabled in backend
 - Check browser DevTools console for errors
 
+### Optional: browser-use Web UI Integration
+
+This project now includes optional integration with the `browser-use/web-ui` agent UI.
+
+1. Clone and set up `browser-use/web-ui` separately (follow their README):
+   - https://github.com/browser-use/web-ui
+2. Configure backend env vars (in `backend/.env`):
+   - `BROWSER_USE_WEB_UI_DIR=/absolute/path/to/web-ui`
+   - `BROWSER_USE_WEB_UI_HOST=127.0.0.1`
+   - `BROWSER_USE_WEB_UI_PORT=7788`
+   - `BROWSER_USE_WEB_UI_PYTHON=python3`
+   - `BROWSER_USE_WEB_UI_AUTO_START=false`
+3. Start your backend.
+4. In extension popup, click **"🤖 Open Agent Web UI"**.
+
+Backend endpoints:
+- `GET /api/web-ui/status`
+- `POST /api/web-ui/start`
+- `POST /api/web-ui/stop`
+- `GET /api/web-ui/url`
+
+Automatic voice-to-agent mode:
+- `BROWSER_USE_VOICE_AGENT_MODE=true` enables running speech commands directly through browser-use agent.
+- `BROWSER_USE_VOICE_AGENT_HEADLESS=false` keeps browser visible so you can watch agent actions.
+- `BROWSER_USE_VOICE_AGENT_MAX_STEPS=25` sets max agent steps per command.
+- `BROWSER_USE_VOICE_AGENT_TIMEOUT_MS=180000` sets per-command timeout.
+
 ### Team Notes
 - This is a hackathon MVP - focus on core functionality first
 - The LLM module has fallback logic for testing without API keys

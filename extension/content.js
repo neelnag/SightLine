@@ -7,6 +7,10 @@ const recognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognitio
 let recognition = null;
 let isListening = false;
 let stopRequested = false;
+let hoverPreviewEnabled = false;
+let lastHoverText = '';
+let lastHoverSpokenAt = 0;
+let hoverSpeakTimer = null;
 
 const sendRuntimeMessage = (payload) => {
   try {
@@ -15,6 +19,75 @@ const sendRuntimeMessage = (payload) => {
     console.warn('Could not send runtime message:', error);
   }
 };
+
+const sanitizeSpokenText = (text) => {
+  return (text || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80);
+};
+
+const speakShortText = (text) => {
+  const phrase = sanitizeSpokenText(text);
+  if (!phrase || !('speechSynthesis' in window)) return;
+
+  const now = Date.now();
+  if (phrase === lastHoverText && now - lastHoverSpokenAt < 2500) return;
+
+  lastHoverText = phrase;
+  lastHoverSpokenAt = now;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(phrase);
+  utterance.rate = 1;
+  utterance.pitch = 1;
+  window.speechSynthesis.speak(utterance);
+};
+
+const inferProductLabel = (element) => {
+  if (!element) return '';
+
+  const card = element.closest(
+    '[data-product], [data-testid*="product" i], article, li, .product, .product-card, .item, .card'
+  ) || element;
+
+  const direct =
+    card.getAttribute('aria-label') ||
+    card.getAttribute('title') ||
+    card.getAttribute('data-product-name') ||
+    '';
+  if (direct && direct.trim().length > 2) return direct.trim();
+
+  const heading = card.querySelector('h1, h2, h3, h4, [role="heading"]');
+  if (heading && heading.textContent) {
+    const t = heading.textContent.trim();
+    if (t.length > 2 && t.length < 80) return t;
+  }
+
+  const candidates = [card, ...card.querySelectorAll('a, span, p, div')];
+  for (const node of candidates.slice(0, 20)) {
+    const text = (node.innerText || node.textContent || '').trim();
+    if (!text || text.length < 3 || text.length > 80) continue;
+    if (/\$|€|£|¥/.test(text) && text.length < 25) continue;
+    if (/add to cart|buy now|wishlist|compare/i.test(text)) continue;
+    return text;
+  }
+
+  return '';
+};
+
+const scheduleHoverAnnouncement = (event) => {
+  if (!hoverPreviewEnabled) return;
+  const target = event.target;
+  if (!target || !(target instanceof Element)) return;
+
+  clearTimeout(hoverSpeakTimer);
+  hoverSpeakTimer = setTimeout(() => {
+    const label = inferProductLabel(target);
+    if (label) speakShortText(label);
+  }, 250);
+};
+
+document.addEventListener('mouseover', scheduleHoverAnnouncement, true);
 
 if (recognitionAPI) {
   recognition = new recognitionAPI();
@@ -136,6 +209,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return;
   }
 
+  if (request.type === 'GET_HOVER_PREVIEW_STATE') {
+    sendResponse({ success: true, enabled: hoverPreviewEnabled });
+    return;
+  }
+
   if (request.type === 'READ_PAGE') {
     const content = document.body.innerText;
     sendResponse({ success: true, content });
@@ -248,6 +326,15 @@ const executePageAction = async (action) => {
         const ms = Number.isFinite(action.ms) ? Math.max(0, Math.floor(action.ms)) : 500;
         await new Promise((resolve) => setTimeout(resolve, ms));
         return { success: true, message: `Waited ${ms} ms.` };
+      }
+      case 'hover_preview': {
+        hoverPreviewEnabled = action.enabled !== false;
+        return {
+          success: true,
+          message: hoverPreviewEnabled
+            ? 'Hover voice preview enabled.'
+            : 'Hover voice preview disabled.'
+        };
       }
       default:
         return { success: false, message: `Unsupported action type: ${action.type}` };
