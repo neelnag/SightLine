@@ -1,113 +1,79 @@
-# Voice Navigator - Hoohacks 2026
-## AI-Powered Accessibility Browser Extension
+# SightLine
 
-### Overview
-This project is a voice-controlled browser extension that allows blind users and people with visual impairments to navigate the internet using natural language commands and an agentic AI system.
+Voice-controlled browser navigation for accessibility.  
+SightLine lets a user speak natural commands, interprets intent with AI, executes actions on the current page, and provides spoken feedback.
 
-### Project Structure
-```
+## Why This Project
+- Accessibility-first browsing for users who benefit from hands-free navigation.
+- Faster interaction for common web tasks like reading, searching, clicking, and scrolling.
+- Designed as a hackathon-ready MVP with clear extension + backend separation.
+
+## Core Demo Flow
+1. User clicks `Start Listening` in the Chrome extension popup.
+2. Browser speech recognition transcribes the spoken command.
+3. Transcript is sent to the backend (`/api/voice/process`).
+4. AI maps the command to an actionable intent.
+5. Content script performs the action in the active webpage.
+6. Extension speaks concise confirmation feedback.
+
+## Features
+- Voice input via Web Speech API
+- AI command interpretation (OpenAI + fallback behavior)
+- Real page actions through Chrome Extension content scripts
+- Text-to-speech output for response confirmation
+- Clean popup UI optimized for quick demoing
+
+## Tech Stack
+- Chrome Extension Manifest V3
+- JavaScript (frontend + content/background scripts)
+- Node.js + Express backend
+- OpenAI API integration (optional but recommended)
+
+## Repository Structure
+```text
 hoohacks-2026/
-├── backend/              # Node.js/Express AI backend
-├── extension/            # Chrome extension
-├── README.md
-└── .gitignore
+├── extension/   # Chrome extension UI + content/background scripts
+├── backend/     # Express API + intent parsing + action orchestration
+├── SOURCES.md   # External references/attribution links
+└── README.md
 ```
 
-### Quick Start
-
-#### Backend Setup
+## Setup (Local)
+1. Install backend dependencies:
 ```bash
 cd backend
 npm install
-# Add your OpenAI API key to .env (optional for hackathon MVP)
-npm start  # Runs on http://localhost:3000
 ```
+2. Configure environment:
+- Create/update `backend/.env`
+- Optional AI key:
+```env
+OPENAI_API_KEY=your_key_here
+OPENAI_MODEL=gpt-4.1-mini
+```
+3. Start backend:
+```bash
+npm start
+```
+4. Load extension:
+- Open `chrome://extensions/`
+- Enable Developer mode
+- Click `Load unpacked`
+- Select `/Users/neel/Hoohacks-2026/extension`
 
-#### Extension Setup
-1. Open Chrome and go to `chrome://extensions/`
-2. Enable "Developer mode" (toggle top-right)
-3. Click "Load unpacked"
-4. Select the `extension/` folder
-5. Refresh the page you're testing on
+## Judge Demo Script (Recommended)
+1. Open a normal webpage (not a `chrome://` page).
+2. Open SightLine popup.
+3. Click `Start Listening`.
+4. Say:
+- "Read the page"
+- "Search for watches"
+- "Scroll down"
+5. Show voice response + visible browser action.
 
-### How to Use
-1. Click the extension icon in your toolbar
-2. Click **"🎤 Start Listening"**
-3. Speak a command like:
-   - "Read the page"
-   - "Click the first link"
-   - "Search for puppies"
-   - "Scroll down"
-4. The AI will interpret and execute the command
+## Notes
+- If `OPENAI_API_KEY` is not set, the backend uses fallback logic.
+- Speech recognition must run on a normal webpage tab where content scripts can execute.
 
-### Features
-- ✅ Voice input via Web Speech API
-- ✅ AI command interpretation (with fallback responses)
-- ✅ Text-to-speech feedback
-- ✅ Extensible backend for complex web automation
-- ✅ Accessible, high-contrast UI
-
-### Technologies Used
-- **Frontend**: HTML, CSS, JavaScript (Web Speech API)
-- **Backend**: Node.js, Express
-- **AI**: OpenAI GPT-4 (with built-in fallback)
-- **Browser API**: Chrome Extensions API v3
-
-### Next Steps (Post-MVP)
-- [ ] Add Puppeteer for automated web interaction
-- [ ] Implement form auto-fill
-- [ ] Add page element enumeration (link/button reading)
-- [ ] Support for shopping sites (Amazon, eBay)
-- [ ] Email integration
-- [ ] Action history/logging
-- [ ] Database for preferences
-
-### Troubleshooting
-
-**No voice input?**
-- Check if your browser supports Web Speech API (Chrome/Edge)
-- Allow microphone permissions
-
-**Backend not responding?**
-- Make sure backend is running: `npm start` in the backend folder
-- Check that port 3000 is not in use
-
-**Commands not working?**
-- Verify CORS is enabled in backend
-- Check browser DevTools console for errors
-
-### Optional: browser-use Web UI Integration
-
-This project now includes optional integration with the `browser-use/web-ui` agent UI.
-
-1. Clone and set up `browser-use/web-ui` separately (follow their README):
-   - https://github.com/browser-use/web-ui
-2. Configure backend env vars (in `backend/.env`):
-   - `BROWSER_USE_WEB_UI_DIR=/absolute/path/to/web-ui`
-   - `BROWSER_USE_WEB_UI_HOST=127.0.0.1`
-   - `BROWSER_USE_WEB_UI_PORT=7788`
-   - `BROWSER_USE_WEB_UI_PYTHON=python3`
-   - `BROWSER_USE_WEB_UI_AUTO_START=false`
-3. Start your backend.
-4. In extension popup, click **"🤖 Open Agent Web UI"**.
-
-Backend endpoints:
-- `GET /api/web-ui/status`
-- `POST /api/web-ui/start`
-- `POST /api/web-ui/stop`
-- `GET /api/web-ui/url`
-
-Automatic voice-to-agent mode:
-- `BROWSER_USE_VOICE_AGENT_MODE=true` enables running speech commands directly through browser-use agent.
-- `BROWSER_USE_VOICE_AGENT_HEADLESS=false` keeps browser visible so you can watch agent actions.
-- `BROWSER_USE_VOICE_AGENT_MAX_STEPS=25` sets max agent steps per command.
-- `BROWSER_USE_VOICE_AGENT_TIMEOUT_MS=180000` sets per-command timeout.
-
-### Team Notes
-- This is a hackathon MVP - focus on core functionality first
-- The LLM module has fallback logic for testing without API keys
-- Icons in `extension/icons/` are placeholders
-- Consider adding accessibility features to the extension itself!
-
-### License
+## License
 MIT
