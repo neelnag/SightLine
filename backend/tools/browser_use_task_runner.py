@@ -2,10 +2,12 @@ import argparse
 import asyncio
 import json
 import os
+import time
 import traceback
 
 from browser_use import Agent
 from browser_use.browser.browser import Browser, BrowserConfig
+from browser_use.browser.context import BrowserContext, BrowserContextConfig
 from langchain_openai import ChatOpenAI
 
 
@@ -13,7 +15,13 @@ def to_bool(value: str) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
-async def run_task(task: str, start_url: str, max_steps: int, headless: bool):
+async def run_task(
+    task: str,
+    start_url: str,
+    max_steps: int,
+    headless: bool,
+    keep_browser_open: bool,
+):
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini").strip() or "gpt-4.1-mini"
     if not api_key:
@@ -31,11 +39,23 @@ async def run_task(task: str, start_url: str, max_steps: int, headless: bool):
         )
 
     llm = ChatOpenAI(model=model, api_key=api_key)
-    browser = Browser(config=BrowserConfig(headless=headless))
+    browser = Browser(
+        config=BrowserConfig(
+            headless=headless,
+            keep_alive=keep_browser_open,
+        )
+    )
+    browser_context = BrowserContext(
+        browser=browser,
+        config=BrowserContextConfig(
+            keep_alive=keep_browser_open
+        ),
+    )
     agent = Agent(
         task=final_task,
         llm=llm,
         browser=browser,
+        browser_context=browser_context,
         use_vision=True,
     )
 
@@ -54,7 +74,7 @@ async def run_task(task: str, start_url: str, max_steps: int, headless: bool):
 
 
 def emit_result(payload):
-    print(f"__BROWSER_USE_RESULT__{json.dumps(payload)}")
+    print(f"__BROWSER_USE_RESULT__{json.dumps(payload)}", flush=True)
 
 
 def main():
@@ -63,6 +83,8 @@ def main():
     parser.add_argument("--start-url", type=str, default="")
     parser.add_argument("--max-steps", type=int, default=25)
     parser.add_argument("--headless", type=str, default="false")
+    parser.add_argument("--keep-browser-open", type=str, default="true")
+    parser.add_argument("--linger-seconds", type=int, default=0)
     args = parser.parse_args()
 
     try:
@@ -72,9 +94,12 @@ def main():
                 start_url=args.start_url,
                 max_steps=max(1, args.max_steps),
                 headless=to_bool(args.headless),
+                keep_browser_open=to_bool(args.keep_browser_open),
             )
         )
         emit_result(result)
+        if to_bool(args.keep_browser_open) and args.linger_seconds > 0:
+            time.sleep(args.linger_seconds)
     except Exception as exc:
         emit_result(
             {
