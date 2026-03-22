@@ -1,0 +1,10 @@
+.git
+.gitignore
+.DS_Store
+node_modules
+backend/node_modules
+browser-use-web-ui
+extension
+npm-debug.log
+yarn-error.log
+*.log
