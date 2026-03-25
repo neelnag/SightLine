@@ -21,7 +21,6 @@ SightLine lets a user speak natural commands, interprets intent with AI, execute
 - AI command interpretation (OpenAI + fallback behavior)
 - Real page actions through Chrome Extension content scripts
 - Text-to-speech output for response confirmation
-- Clean popup UI optimized for quick demoing
 
 ## Tech Stack
 - Chrome Extension Manifest V3
