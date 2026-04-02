@@ -24,7 +24,7 @@ SightLine lets a user speak natural commands, interprets intent with AI, execute
 
 ## Tech Stack
 - Chrome Extension Manifest V3
-- JavaScript (frontend + content/background scripts)
+- JavaScript (frontend + content and background scripts)
 - Node.js + Express backend
 - OpenAI API integration (optional but recommended)
 
